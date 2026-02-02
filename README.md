@@ -1,70 +1,75 @@
-# Getting Started with Create React App
+# Banking Transaction Analyzer
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Categorizes and summarizes bank transactions from Excel statements (.xlsx). Upload monthly files, view spending breakdowns by category and card holder, and manage category rules.
 
-## Available Scripts
+## Stack
 
-In the project directory, you can run:
+- **Frontend:** React, Recharts, nginx
+- **Backend:** Python, FastAPI, SQLite
+- **Infrastructure:** Docker Compose
 
-### `npm start`
+## Quick Start
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```bash
+docker compose up -d
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+App runs at `http://localhost:3000`.
 
-### `npm test`
+## Usage
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Upload an `.xlsx` bank statement via drag & drop or file picker
+2. Transactions are parsed, categorized, and stored in SQLite
+3. Upload additional monthly files — duplicates are skipped automatically
+4. Click a transaction's category badge to reassign it (updates all matching merchants)
+5. Add custom categories via the "+ Add Category" button
+6. Filter by category, card holder, or source file
 
-### `npm run build`
+## Architecture
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```
+banking-app/
+├── docker-compose.yml
+├── Dockerfile              # React build → nginx
+├── nginx.conf              # Serves frontend, proxies /api → backend
+├── backend/
+│   ├── Dockerfile
+│   ├── main.py             # FastAPI endpoints + Excel parser
+│   ├── database.py         # SQLite schema, seed data
+│   └── requirements.txt
+└── src/
+    ├── App.js              # React app
+    └── App.css
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## API Endpoints
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/upload` | Upload .xlsx file |
+| `GET` | `/api/transactions` | List transactions (query: `category`, `card_holder`, `source_file`) |
+| `GET` | `/api/categories` | List all categories |
+| `POST` | `/api/categories` | Create category `{ "name": "..." }` |
+| `GET` | `/api/category-rules` | List keyword→category mappings |
+| `PUT` | `/api/category-rules/{keyword}` | Update rule + all matching transactions `{ "category": "..." }` |
+| `POST` | `/api/category-rules` | Create rule `{ "keyword": "...", "category": "..." }` |
+| `GET` | `/api/source-files` | List imported filenames |
 
-### `npm run eject`
+## Database
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+SQLite with three tables:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+- **transactions** — date, description, city, amount, card_holder, category, source_file (dedup index on date+description+amount+card_holder+source_file)
+- **categories** — unique category names
+- **category_rules** — keyword→category mappings; changing a rule updates all matching transactions
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Data persists in Docker volume `db-data`. Wipe with `docker compose down -v`.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Commands
 
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```bash
+docker compose up -d          # start
+docker compose down           # stop
+docker compose up --build -d  # rebuild after code changes
+docker compose down -v        # stop + wipe database
+```
