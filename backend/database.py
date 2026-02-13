@@ -49,9 +49,16 @@ def init_db():
             amount REAL,
             card_holder TEXT,
             category TEXT,
-            source_file TEXT
+            source_file TEXT,
+            manual_category INTEGER NOT NULL DEFAULT 0
         )
     """)
+
+    # Add manual_category column to existing databases
+    try:
+        c.execute("ALTER TABLE transactions ADD COLUMN manual_category INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass  # column already exists
 
     c.execute("""
         CREATE TABLE IF NOT EXISTS categories (
