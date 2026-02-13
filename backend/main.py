@@ -171,7 +171,7 @@ def create_category(body: CategoryCreate):
     return {"ok": True}
 
 
-@app.delete("/categories/{name}")
+@app.delete("/categories/{name:path}")
 def delete_category(name: str):
     if name in ("Other", "Excluded"):
         raise HTTPException(400, "Cannot delete built-in category")
@@ -199,7 +199,7 @@ class CategoryUpdate(BaseModel):
 @app.put("/transactions/{txn_id}/category")
 def update_transaction_category(txn_id: int, body: CategoryUpdate):
     db = get_db()
-    db.execute("UPDATE transactions SET category = ? WHERE id = ?", (body.category, txn_id))
+    db.execute("UPDATE transactions SET category = ?, manual_category = 1 WHERE id = ?", (body.category, txn_id))
     db.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (body.category,))
     db.commit()
     db.close()
@@ -210,7 +210,7 @@ class RuleUpdate(BaseModel):
     category: str
 
 
-@app.put("/category-rules/{keyword}")
+@app.put("/category-rules/{keyword:path}")
 def update_rule(keyword: str, body: RuleUpdate):
     db = get_db()
     # Upsert rule
@@ -223,10 +223,11 @@ def update_rule(keyword: str, body: RuleUpdate):
     # Ensure category exists
     db.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (body.category,))
 
-    # Update all matching transactions
+    # Update matching transactions, but skip ones manually categorized
+    escaped = keyword.upper().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     updated = db.execute(
-        "UPDATE transactions SET category = ? WHERE UPPER(description) LIKE ?",
-        (body.category, f"%{keyword.upper()}%"),
+        "UPDATE transactions SET category = ? WHERE UPPER(description) LIKE ? ESCAPE '\\' AND manual_category = 0",
+        (body.category, f"%{escaped}%"),
     ).rowcount
 
     db.commit()
@@ -250,9 +251,10 @@ def create_rule(body: RuleCreate):
 
     db.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (body.category,))
 
+    escaped = body.keyword.upper().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     updated = db.execute(
-        "UPDATE transactions SET category = ? WHERE UPPER(description) LIKE ?",
-        (body.category, f"%{body.keyword.upper()}%"),
+        "UPDATE transactions SET category = ? WHERE UPPER(description) LIKE ? ESCAPE '\\' AND manual_category = 0",
+        (body.category, f"%{escaped}%"),
     ).rowcount
 
     db.commit()
